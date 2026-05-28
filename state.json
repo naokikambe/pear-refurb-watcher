@@ -1,0 +1,4 @@
+{
+  "note": "Runtime state is stored as encrypted_state.json in the configured Secret Gist.",
+  "targets": {}
+}

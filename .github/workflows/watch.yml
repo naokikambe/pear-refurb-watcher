@@ -1,0 +1,45 @@
+name: Web Monitor
+
+on:
+  schedule:
+    # GitHub Actions cron is best-effort and may be delayed or skipped.
+    # Avoid overly aggressive schedules.
+    # Avoid excessive monitoring of target sites.
+    # GitHub Actions delays are possible during busy periods.
+    # Default schedule intentionally uses a moderate interval.
+    - cron: "7,17,27,37,47,57 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-monitor
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run monitor
+        env:
+          MONITOR_TARGETS: ${{ secrets.MONITOR_TARGETS }}
+          STATE_ENCRYPTION_KEY: ${{ secrets.STATE_ENCRYPTION_KEY }}
+          PAYLOAD_ENCRYPTION_KEY: ${{ secrets.PAYLOAD_ENCRYPTION_KEY }}
+          STATE_GIST_ID: ${{ secrets.STATE_GIST_ID }}
+          STATE_GIST_TOKEN: ${{ secrets.STATE_GIST_TOKEN }}
+          DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+          DISPATCH_REPO: ${{ secrets.DISPATCH_REPO }}
+        run: python watch.py

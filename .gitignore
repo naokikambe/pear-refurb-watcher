@@ -1,0 +1,17 @@
+__pycache__/
+**/__pycache__/
+*.pyc
+*.py[cod]
+.env
+.env.local
+.venv/
+.vscode/
+.DS_Store
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+htmlcov/
+AGENTS.md
+DESIGN.md
+docs/private/
