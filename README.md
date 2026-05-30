@@ -55,6 +55,7 @@ Store keys only in GitHub Secrets. Do not print them in logs or put sample key v
 [
   {
     "id": "source-a",
+    "label": "Display Name",
     "url": "https://example.com/products",
     "mode": "item_list",
     "item_selectors": [".product-card"],
@@ -76,7 +77,7 @@ Store keys only in GitHub Secrets. Do not print them in logs or put sample key v
 ]
 ```
 
-Use abstract IDs. Target IDs may appear in logs and encrypted plaintext payload after decryption by the notifier, so avoid names that reveal the monitored source.
+Use abstract IDs. Target IDs may appear in logs and encrypted plaintext payload after decryption by the notifier, so avoid names that reveal the monitored source. `label` is optional and is used as the human-readable source name in notifications. If `label` is omitted, the watcher uses the target ID as the source label.
 
 Each `fields` value can be either a non-empty CSS selector string or an object:
 
@@ -145,7 +146,7 @@ When a target has a notification-worthy change, the watcher creates a plaintext 
 }
 ```
 
-The encrypted payload contains an `event_id`, `detected_at`, source IDs, counts, and up to `max_notify_items` item details. The plaintext payload is never logged.
+The encrypted payload contains an `event_id`, `detected_at`, source IDs, source labels, counts, and up to `max_notify_items` item details. The plaintext payload is never logged.
 
 `removed` events can be counted, but removed item details may be unavailable. Removed items are absent from the current page, and plaintext item details are not stored in state, so a removed notification may contain only the source ID and `change: removed`. For detailed notifications, `added` and `changed` are the primary use cases.
 

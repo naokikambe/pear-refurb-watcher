@@ -54,6 +54,7 @@ class MonitorError(RuntimeError):
 class TargetConfig:
     id: str
     url: str
+    label: str = ""
     mode: str = "auto"
     selectors: list[str] = field(default_factory=list)
     exclude_selectors: list[str] = field(default_factory=list)
@@ -158,9 +159,14 @@ def load_targets() -> list[TargetConfig]:
             raise MonitorError(f"Target #{index} must be an object")
 
         target_id = item.get("id")
+        label = item.get("label")
         url = item.get("url")
         if not isinstance(target_id, str) or not target_id.strip():
             raise MonitorError(f"Target #{index} has an invalid id")
+        if label is None:
+            label = target_id
+        if not isinstance(label, str) or not label.strip():
+            raise MonitorError(f"Target {target_id} has an invalid label")
 
         parsed_url = urlparse(url) if isinstance(url, str) else None
         if parsed_url is None or parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
@@ -198,6 +204,7 @@ def load_targets() -> list[TargetConfig]:
 
         config = TargetConfig(
             id=target_id,
+            label=label,
             url=url,
             mode=mode,
             selectors=require_string_list(item.get("selectors"), "selectors", target_id),
@@ -490,6 +497,7 @@ def target_notification(
             items.append(item)
         return has_change, should_update, {
             "source_id": config.id,
+            "source_label": config.label,
             "mode": mode,
             "counts": counts,
             "truncated": total_count > len(included_ids),
@@ -506,6 +514,7 @@ def target_notification(
         return has_change, should_update, None
     return has_change, should_update, {
         "source_id": config.id,
+        "source_label": config.label,
         "mode": mode,
         "counts": {"changed": 1},
         "truncated": False,
