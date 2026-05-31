@@ -74,6 +74,16 @@ Avoid setting `ACTIONS_RUNNER_DEBUG` or `ACTIONS_STEP_DEBUG` to `true`, because 
       }
     },
     "notify_on": ["added", "changed"],
+    "notification_sort_rules": [
+      {
+        "label": "Category A",
+        "match": ["keyword-a"]
+      },
+      {
+        "label": "Category B",
+        "match": ["keyword-b"]
+      }
+    ],
     "update_state_on_non_notified_change": false,
     "history_max_items": 1000,
     "max_notify_items": 20
@@ -82,6 +92,8 @@ Avoid setting `ACTIONS_RUNNER_DEBUG` or `ACTIONS_STEP_DEBUG` to `true`, because 
 ```
 
 Use abstract IDs. Target IDs may appear in logs and encrypted plaintext payload after decryption by the notifier, so avoid names that reveal the monitored source. `label` is optional and is used as the human-readable source name in notifications. If `label` is omitted, the watcher uses the target ID as the source label.
+
+`notification_sort_rules` is optional. It defines display ordering rules for notification item details. Each rule has a display `label` and a list of `match` keywords checked against item titles by the notifier. Keep source-specific keywords in `MONITOR_TARGETS`, not in this public repository.
 
 Each `fields` value can be either a non-empty CSS selector string or an object:
 

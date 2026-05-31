@@ -66,6 +66,7 @@ class TargetConfig:
     update_state_on_non_notified_change: bool = False
     strip_query_params: list[str] = field(default_factory=list)
     fields: dict[str, Any] = field(default_factory=dict)
+    notification_sort_rules: list[dict[str, Any]] = field(default_factory=list)
     history_max_items: int = 1000
     max_notify_items: int = 20
 
@@ -143,6 +144,25 @@ def require_int(value: Any, field_name: str, target_id: str, default: int) -> in
     return value
 
 
+def require_sort_rules(value: Any, target_id: str) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise MonitorError(f"Target {target_id} has invalid notification_sort_rules")
+    rules: list[dict[str, Any]] = []
+    for rule in value:
+        if not isinstance(rule, dict):
+            raise MonitorError(f"Target {target_id} has invalid notification_sort_rules")
+        label = rule.get("label")
+        match = rule.get("match")
+        if not isinstance(label, str) or not label.strip():
+            raise MonitorError(f"Target {target_id} has invalid notification_sort_rules")
+        if not isinstance(match, list) or not match or not all(isinstance(item, str) and item for item in match):
+            raise MonitorError(f"Target {target_id} has invalid notification_sort_rules")
+        rules.append({"label": label, "match": match})
+    return rules
+
+
 def load_targets() -> list[TargetConfig]:
     raw = env_required(TARGETS_ENV)
     try:
@@ -217,6 +237,7 @@ def load_targets() -> list[TargetConfig]:
             update_state_on_non_notified_change=bool(item.get("update_state_on_non_notified_change", False)),
             strip_query_params=require_string_list(item.get("strip_query_params"), "strip_query_params", target_id),
             fields=fields,
+            notification_sort_rules=require_sort_rules(item.get("notification_sort_rules"), target_id),
             history_max_items=require_int(item.get("history_max_items"), "history_max_items", target_id, 1000),
             max_notify_items=require_int(item.get("max_notify_items"), "max_notify_items", target_id, 20),
         )
@@ -498,6 +519,7 @@ def target_notification(
         return has_change, should_update, {
             "source_id": config.id,
             "source_label": config.label,
+            "notification_sort_rules": config.notification_sort_rules,
             "mode": mode,
             "counts": counts,
             "truncated": total_count > len(included_ids),
@@ -515,6 +537,7 @@ def target_notification(
     return has_change, should_update, {
         "source_id": config.id,
         "source_label": config.label,
+        "notification_sort_rules": config.notification_sort_rules,
         "mode": mode,
         "counts": {"changed": 1},
         "truncated": False,
