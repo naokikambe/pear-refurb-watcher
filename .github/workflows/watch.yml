@@ -1,5 +1,8 @@
 name: Web Monitor
 
+# Do not enable ACTIONS_RUNNER_DEBUG or ACTIONS_STEP_DEBUG in public repos.
+# Debug logs may include additional execution details.
+
 on:
   schedule:
     # GitHub Actions cron is best-effort and may be delayed or skipped.

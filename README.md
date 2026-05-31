@@ -47,6 +47,10 @@ Store keys only in GitHub Secrets. Do not print them in logs or put sample key v
 
 `DISPATCH_TOKEN` must be able to call the GitHub repository dispatch API for `DISPATCH_REPO`. For fine-grained tokens, grant the minimum permissions required for repository dispatch. Do not use a broad token unless necessary, and store it only in GitHub Secrets.
 
+Security note: Do not enable GitHub Actions debug logging in public repositories when using this project.
+
+Avoid setting `ACTIONS_RUNNER_DEBUG` or `ACTIONS_STEP_DEBUG` to `true`, because debug logs may include additional execution details. This project intentionally avoids logging decrypted payloads, notification bodies, URLs, credentials, recipient information, and plaintext state.
+
 ## MONITOR_TARGETS
 
 `MONITOR_TARGETS` is a JSON array string. It is the only place where target URLs, site-specific selectors, field mappings, and retention settings belong.
