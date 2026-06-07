@@ -131,6 +131,7 @@ Plaintext state exists only in memory during the workflow and contains hash data
   "targets": {
     "source-a": {
       "mode": "item_list",
+      "config_hash": "sha256:config",
       "current": {
         "items": {
           "sha256:item-id": "sha256:fingerprint"
@@ -146,7 +147,9 @@ Plaintext state exists only in memory during the workflow and contains hash data
 }
 ```
 
-State may contain target IDs, modes, item ID hashes, fingerprint hashes, and rolling history hashes. It must not contain URLs, names, prices, specs, HTML, text fragments, notification bodies, recipients, timestamps, or plaintext payloads.
+State may contain target IDs, modes, configuration hashes, item ID hashes, fingerprint hashes, and rolling history hashes. It must not contain URLs, names, prices, specs, HTML, text fragments, notification bodies, recipients, timestamps, or plaintext payloads.
+
+Each target stores a `config_hash` derived from settings that affect change detection. If the stored hash is missing or changes, that target is rebuilt as a baseline without sending a notification. This prevents stale state from causing repeated non-notified changes after selector, item key, field, query stripping, ignore pattern, or fingerprint configuration changes.
 
 ## Notifications
 

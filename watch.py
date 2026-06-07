@@ -66,6 +66,8 @@ class TargetConfig:
     update_state_on_non_notified_change: bool = False
     strip_query_params: list[str] = field(default_factory=list)
     fields: dict[str, Any] = field(default_factory=dict)
+    fingerprint_strategy: str = "text_hash"
+    fingerprint_fields: list[str] = field(default_factory=list)
     notification_sort_rules: list[dict[str, Any]] = field(default_factory=list)
     history_max_items: int = 1000
     max_notify_items: int = 20
@@ -95,6 +97,11 @@ def utc_now() -> str:
 
 def sha256_value(value: str) -> str:
     return f"sha256:{hashlib.sha256(value.encode('utf-8')).hexdigest()}"
+
+
+def sha256_json(value: Any) -> str:
+    raw = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return sha256_value(raw)
 
 
 def normalize_text(value: str) -> str:
@@ -198,10 +205,13 @@ def load_targets() -> list[TargetConfig]:
         item_key_strategy = item.get("item_key_strategy", "content_hash")
         notify_on = require_string_list(item.get("notify_on"), "notify_on", target_id)
         fields = item.get("fields", {})
+        fingerprint_strategy = item.get("fingerprint_strategy", "text_hash")
         if mode not in VALID_MODES:
             raise MonitorError(f"Target {target_id} has invalid mode")
         if item_key_strategy not in VALID_ITEM_KEY_STRATEGIES:
             raise MonitorError(f"Target {target_id} has invalid item_key_strategy")
+        if not isinstance(fingerprint_strategy, str) or not fingerprint_strategy:
+            raise MonitorError(f"Target {target_id} has invalid fingerprint_strategy")
         if any(value not in VALID_NOTIFY_ON for value in notify_on):
             raise MonitorError(f"Target {target_id} has invalid notify_on")
         if not isinstance(fields, dict) or not all(isinstance(k, str) for k in fields):
@@ -237,6 +247,8 @@ def load_targets() -> list[TargetConfig]:
             update_state_on_non_notified_change=bool(item.get("update_state_on_non_notified_change", False)),
             strip_query_params=require_string_list(item.get("strip_query_params"), "strip_query_params", target_id),
             fields=fields,
+            fingerprint_strategy=fingerprint_strategy,
+            fingerprint_fields=require_string_list(item.get("fingerprint_fields"), "fingerprint_fields", target_id),
             notification_sort_rules=require_sort_rules(item.get("notification_sort_rules"), target_id),
             history_max_items=require_int(item.get("history_max_items"), "history_max_items", target_id, 1000),
             max_notify_items=require_int(item.get("max_notify_items"), "max_notify_items", target_id, 20),
@@ -473,11 +485,26 @@ def build_next_target_state(
     if mode == "item_list":
         current_item_ids = list(current.get("items", {}).keys())
         recent = roll_history(history.get("recent_item_ids", []), current_item_ids, config.history_max_items)
-        return {"mode": mode, "current": current, "history": {"recent_item_ids": recent}}
+        return {"mode": mode, "config_hash": config_hash(config), "current": current, "history": {"recent_item_ids": recent}}
     recent_hashes = history.get("recent_content_hashes", [])
     if should_update:
         recent_hashes = roll_history(recent_hashes, [current["content_hash"]], config.history_max_items)
-    return {"mode": mode, "current": current, "history": {"recent_content_hashes": recent_hashes}}
+    return {"mode": mode, "config_hash": config_hash(config), "current": current, "history": {"recent_content_hashes": recent_hashes}}
+
+
+def config_hash(config: TargetConfig) -> str:
+    return sha256_json(
+        {
+            "mode": config.effective_mode,
+            "item_selectors": config.item_selectors,
+            "item_key_strategy": config.item_key_strategy,
+            "fields": config.fields,
+            "strip_query_params": config.strip_query_params,
+            "ignore_patterns": config.ignore_patterns,
+            "fingerprint_strategy": config.fingerprint_strategy,
+            "fingerprint_fields": config.fingerprint_fields,
+        }
+    )
 
 
 def item_diff(previous: dict[str, Any], current: dict[str, Any]) -> dict[str, list[str]]:
@@ -599,11 +626,24 @@ def main() -> None:
         html = fetch_html(session, config)
         current, details = build_current(html, config)
         previous = state.get("targets", {}).get(config.id, {})
+        current_config_hash = config_hash(config)
 
         if not previous:
             next_state["targets"][config.id] = build_next_target_state(previous, current, config, True)
             state_updates += 1
             print(f"{config.id}: baseline mode={config.effective_mode}")
+            continue
+
+        if "config_hash" not in previous:
+            next_state["targets"][config.id] = build_next_target_state(previous, current, config, True)
+            state_updates += 1
+            print(f"{config.id}: baseline mode={config.effective_mode}")
+            continue
+
+        if previous.get("config_hash") != current_config_hash:
+            next_state["targets"][config.id] = build_next_target_state(previous, current, config, True)
+            state_updates += 1
+            print(f"{config.id}: config changed; rebuilding baseline")
             continue
 
         has_change, should_update, notification = target_notification(config, previous, current, details)
