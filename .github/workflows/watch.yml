@@ -12,6 +12,11 @@ on:
     # Default schedule intentionally uses a moderate interval.
     - cron: "7,17,27,37,47,57 * * * *"
   workflow_dispatch:
+    inputs:
+      trigger_source:
+        description: "Trigger source"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -35,6 +40,11 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Log trigger source
+        env:
+          TRIGGER_SOURCE: ${{ github.event.inputs.trigger_source }}
+        run: echo "trigger_source=${TRIGGER_SOURCE:-${GITHUB_EVENT_NAME}}"
 
       - name: Run monitor
         env:
