@@ -245,13 +245,7 @@ Use `selectors`, `item_selectors`, and `ignore_patterns` to reduce noisy diffs. 
 
 ## GitHub Actions
 
-The default schedule is 10 minutes and avoids minute `00`:
-
-```yaml
-7,17,27,37,47,57 * * * *
-```
-
-GitHub Actions cron is best-effort and may be delayed or skipped. Avoid excessive monitoring frequency and excessive access to target sites.
+The watcher workflow is intentionally started by `workflow_dispatch`. Keep cron scheduling outside this repository so trigger timing can be managed separately from monitoring logic.
 
 ## Secret Gist Token Notes
 

@@ -4,13 +4,6 @@ name: Web Monitor
 # Debug logs may include additional execution details.
 
 on:
-  schedule:
-    # GitHub Actions cron is best-effort and may be delayed or skipped.
-    # Avoid overly aggressive schedules.
-    # Avoid excessive monitoring of target sites.
-    # GitHub Actions delays are possible during busy periods.
-    # Default schedule intentionally uses a moderate interval.
-    - cron: "7,17,27,37,47,57 * * * *"
   workflow_dispatch:
     inputs:
       trigger_source:
