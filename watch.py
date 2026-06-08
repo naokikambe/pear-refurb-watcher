@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -19,6 +20,8 @@ from cryptography.fernet import Fernet, InvalidToken
 TARGETS_ENV = "MONITOR_TARGETS"
 STATE_FILE_NAME = "encrypted_state.json"
 TIMEOUT_SECONDS = 15
+FETCH_RETRY_ATTEMPTS = 3
+FETCH_RETRY_BACKOFF_SECONDS = 3
 USER_AGENT = "Mozilla/5.0 (compatible; GenericWebMonitor/1.0)"
 DISPATCH_BODY_LIMIT_BYTES = 60_000
 
@@ -47,6 +50,10 @@ VALID_NOTIFY_ON = {"any_change", "added", "removed", "changed"}
 
 
 class MonitorError(RuntimeError):
+    pass
+
+
+class FetchError(MonitorError):
     pass
 
 
@@ -318,12 +325,17 @@ def save_encrypted_state(state: dict[str, Any], fernet: Fernet) -> None:
 
 
 def fetch_html(session: requests.Session, target: TargetConfig) -> str:
-    try:
-        response = session.get(target.url, timeout=TIMEOUT_SECONDS)
-        response.raise_for_status()
-    except requests.RequestException:
-        raise MonitorError(f"Failed to fetch target {target.id}") from None
-    return response.text
+    for attempt in range(1, FETCH_RETRY_ATTEMPTS + 1):
+        try:
+            response = session.get(target.url, timeout=TIMEOUT_SECONDS)
+            response.raise_for_status()
+            return response.text
+        except requests.RequestException:
+            if attempt == FETCH_RETRY_ATTEMPTS:
+                raise FetchError(f"Failed to fetch target {target.id}") from None
+            print(f"{target.id}: fetch failed; retrying")
+            time.sleep(FETCH_RETRY_BACKOFF_SECONDS * attempt)
+    raise FetchError(f"Failed to fetch target {target.id}")
 
 
 def safe_select(node: BeautifulSoup | Tag, selector: str, target_id: str) -> list[Tag]:
@@ -621,9 +633,18 @@ def main() -> None:
     next_state = {"version": 1, "targets": dict(state.get("targets", {}))}
     notification_targets: list[dict[str, Any]] = []
     state_updates = 0
+    fetched_targets = 0
+    skipped_targets = 0
 
     for config in configs:
-        html = fetch_html(session, config)
+        try:
+            html = fetch_html(session, config)
+        except FetchError as exc:
+            skipped_targets += 1
+            print(f"Error: {exc}", file=sys.stderr)
+            print(f"::warning::{config.id} skipped due to fetch failure")
+            continue
+        fetched_targets += 1
         current, details = build_current(html, config)
         previous = state.get("targets", {}).get(config.id, {})
         current_config_hash = config_hash(config)
@@ -655,6 +676,11 @@ def main() -> None:
 
         status = "changed" if has_change else "no-change"
         print(f"{config.id}: {status} mode={config.effective_mode}")
+
+    if fetched_targets == 0:
+        raise MonitorError("All targets failed to fetch")
+    if skipped_targets:
+        print(f"Skipped {skipped_targets} target(s) due to fetch failure")
 
     if state_updates == 0:
         print("No encrypted state update required")
