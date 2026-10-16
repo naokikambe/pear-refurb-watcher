@@ -324,16 +324,33 @@ def save_encrypted_state(state: dict[str, Any], fernet: Fernet) -> None:
         raise MonitorError("Failed to save encrypted state") from None
 
 
+def fetch_error_kind(exc: Exception) -> str:
+    if isinstance(exc, requests.Timeout):
+        return f"timeout ({type(exc).__name__})"
+    if isinstance(exc, requests.HTTPError):
+        status_code = exc.response.status_code if exc.response is not None else None
+        if status_code is not None:
+            return f"HTTP error (status {status_code})"
+        return "HTTP error (status unknown)"
+    if isinstance(exc, requests.ConnectionError):
+        return f"connection error ({type(exc).__name__})"
+    return f"other error ({type(exc).__name__})"
+
+
 def fetch_html(session: requests.Session, target: TargetConfig) -> str:
     for attempt in range(1, FETCH_RETRY_ATTEMPTS + 1):
         try:
             response = session.get(target.url, timeout=TIMEOUT_SECONDS)
             response.raise_for_status()
             return response.text
-        except requests.RequestException:
+        except Exception as exc:
+            error_kind = fetch_error_kind(exc)
             if attempt == FETCH_RETRY_ATTEMPTS:
-                raise FetchError(f"Failed to fetch target {target.id}") from None
-            print(f"{target.id}: fetch failed; retrying")
+                raise FetchError(f"Failed to fetch target {target.id}: {error_kind}") from None
+            print(
+                f"{target.id}: {error_kind} on attempt {attempt}/{FETCH_RETRY_ATTEMPTS}; retrying",
+                flush=True,
+            )
             time.sleep(FETCH_RETRY_BACKOFF_SECONDS * attempt)
     raise FetchError(f"Failed to fetch target {target.id}")
 
