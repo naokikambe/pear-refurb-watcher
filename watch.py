@@ -18,6 +18,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 
 TARGETS_ENV = "MONITOR_TARGETS"
+ENABLED_TARGETS_ENV = "MONITOR_ENABLED_TARGETS"
 STATE_FILE_NAME = "encrypted_state.json"
 TIMEOUT_SECONDS = 15
 FETCH_RETRY_ATTEMPTS = 3
@@ -269,6 +270,25 @@ def load_targets() -> list[TargetConfig]:
         targets.append(config)
 
     return targets
+
+
+def select_enabled_targets(targets: list[TargetConfig]) -> list[TargetConfig]:
+    raw = os.environ.get(ENABLED_TARGETS_ENV)
+    if raw is None:
+        return targets
+
+    enabled_ids = {target_id.strip() for target_id in raw.split(",") if target_id.strip()}
+    if not enabled_ids:
+        raise MonitorError(f"{ENABLED_TARGETS_ENV} must contain at least one target id")
+
+    configured_ids = {target.id for target in targets}
+    unknown_ids = enabled_ids - configured_ids
+    if unknown_ids:
+        raise MonitorError(f"{ENABLED_TARGETS_ENV} contains unknown target id(s)")
+
+    selected = [target for target in targets if target.id in enabled_ids]
+    print(f"Enabled targets: {', '.join(target.id for target in selected)}")
+    return selected
 
 
 def default_state() -> dict[str, Any]:
@@ -640,7 +660,7 @@ def dispatch_notification(payload: dict[str, Any], fernet: Fernet) -> None:
 
 
 def main() -> None:
-    configs = load_targets()
+    configs = select_enabled_targets(load_targets())
     state_fernet = fernet_from_env("STATE_ENCRYPTION_KEY")
     payload_fernet = fernet_from_env("PAYLOAD_ENCRYPTION_KEY")
     state = load_encrypted_state(state_fernet)

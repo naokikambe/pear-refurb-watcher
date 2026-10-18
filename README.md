@@ -55,6 +55,8 @@ Avoid setting `ACTIONS_RUNNER_DEBUG` or `ACTIONS_STEP_DEBUG` to `true`, because 
 
 `MONITOR_TARGETS` is a JSON array string. It is the only place where target URLs, site-specific selectors, field mappings, and retention settings belong.
 
+`MONITOR_ENABLED_TARGETS` is an optional comma-separated list of target IDs. When set, the watcher fetches only the listed targets; when unset, it fetches all targets in `MONITOR_TARGETS`. The active list is configured in the workflow and does not expose target URLs or other secret configuration.
+
 ```json
 [
   {
